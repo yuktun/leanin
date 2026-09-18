@@ -1,11 +1,75 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-HK">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello World</title>
+    <title>每日家務清單</title>
+    <style>
+      :root { --navy: #203a5f; --blue: #4879bb; --green: #2d8b62; --ink: #233044; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: linear-gradient(135deg, #e8f2ff, #faf7f0); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", sans-serif; }
+      main { max-width: 720px; margin: 0 auto; padding: 32px 18px 48px; }
+      header { text-align: center; margin-bottom: 24px; }
+      h1 { color: var(--navy); font-size: clamp(1.8rem, 7vw, 2.5rem); margin: 0 0 8px; }
+      #today { color: #5f6d80; margin: 0; font-size: 1rem; }
+      .summary { background: white; border-radius: 18px; padding: 20px; box-shadow: 0 8px 28px rgba(35, 65, 100, .12); margin-bottom: 18px; }
+      .summary-line { display: flex; justify-content: space-between; gap: 16px; font-weight: 700; }
+      #progress-text { color: var(--green); white-space: nowrap; }
+      .progress-track { height: 11px; background: #dfe8f2; border-radius: 99px; overflow: hidden; margin-top: 13px; }
+      #progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, #50b985, #2d8b62); border-radius: inherit; transition: width .25s ease; }
+      .task-list { display: grid; gap: 12px; }
+      .task { display: flex; align-items: center; gap: 14px; padding: 16px; min-height: 76px; background: white; border: 2px solid transparent; border-radius: 15px; box-shadow: 0 4px 14px rgba(35, 65, 100, .08); cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+      .task:hover { transform: translateY(-1px); border-color: #b9d0ec; }
+      .task.done { background: #f0faf5; border-color: #9ed8bc; }
+      .check { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; border: 2px solid #aab9ca; border-radius: 50%; color: white; font-size: 1.1rem; }
+      .done .check { background: var(--green); border-color: var(--green); }
+      .time { width: 52px; color: var(--blue); font-weight: 800; }
+      .task-name { flex: 1; font-size: 1.05rem; font-weight: 650; }
+      .done .task-name { text-decoration: line-through; color: #60776d; }
+      .completed-at { color: var(--green); font-size: .82rem; white-space: nowrap; }
+      button { display: block; width: 100%; margin-top: 24px; padding: 14px; border: 0; border-radius: 12px; background: var(--navy); color: white; font: inherit; font-weight: 700; cursor: pointer; }
+      button:hover { background: #162d4e; }
+      .note { text-align: center; color: #6b7788; font-size: .85rem; margin-top: 18px; }
+    </style>
   </head>
   <body>
-    <h1>Hello world</h1>
+    <main>
+      <header><h1>每日家務清單</h1><p id="today"></p></header>
+      <section class="summary" aria-label="完成進度"><div class="summary-line"><span>今日進度</span><span id="progress-text">0 / 0 項已完成</span></div><div class="progress-track"><div id="progress-bar"></div></div></section>
+      <section id="task-list" class="task-list" aria-label="工作項目"></section>
+      <button id="reset-button" type="button">重設今日清單</button>
+      <p class="note">完成狀態會自動儲存在此瀏覽器。</p>
+    </main>
+    <script>
+      const tasks = [["07:30", "起身、整理床舖"], ["08:00", "準備早餐"], ["09:00", "清洗餐具、清理廚房"], ["10:00", "掃地／拖地"], ["12:00", "準備午餐"], ["13:00", "清洗及晾曬衣物"], ["15:00", "摺衫、收拾衣物"], ["16:00", "整理客廳及房間"], ["18:00", "準備晚餐"], ["20:00", "清洗餐具、整理廚房"], ["21:00", "垃圾分類／倒垃圾"], ["21:30", "檢查門窗及關燈"]];
+      const dateKey = new Date().toLocaleDateString("en-CA");
+      const storageKey = `daily-housework-${dateKey}`;
+      let completed = JSON.parse(localStorage.getItem(storageKey) || "{}");
+      const taskList = document.querySelector("#task-list");
+      const progressText = document.querySelector("#progress-text");
+      const progressBar = document.querySelector("#progress-bar");
+      document.querySelector("#today").textContent = new Intl.DateTimeFormat("zh-HK", { year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(new Date());
+      function save() { localStorage.setItem(storageKey, JSON.stringify(completed)); }
+      function completedTime(timestamp) { return new Intl.DateTimeFormat("zh-HK", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(timestamp)); }
+      function render() {
+        taskList.innerHTML = "";
+        tasks.forEach(([time, name], index) => {
+          const doneAt = completed[index];
+          const item = document.createElement("article");
+          item.className = `task${doneAt ? " done" : ""}`;
+          item.tabIndex = 0; item.setAttribute("role", "checkbox"); item.setAttribute("aria-checked", Boolean(doneAt));
+          item.innerHTML = `<span class="check">${doneAt ? "✓" : ""}</span><span class="time">${time}</span><span class="task-name">${name}</span><span class="completed-at">${doneAt ? "完成 " + completedTime(doneAt) : ""}</span>`;
+          const toggle = () => { doneAt ? delete completed[index] : completed[index] = Date.now(); save(); render(); };
+          item.addEventListener("click", toggle);
+          item.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggle(); } });
+          taskList.append(item);
+        });
+        const count = Object.keys(completed).length;
+        progressText.textContent = `${count} / ${tasks.length} 項已完成`;
+        progressBar.style.width = `${count / tasks.length * 100}%`;
+      }
+      document.querySelector("#reset-button").addEventListener("click", () => { if (confirm("確定要重設今天所有完成紀錄？")) { completed = {}; save(); render(); } });
+      render();
+    </script>
   </body>
 </html>
